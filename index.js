@@ -44,25 +44,14 @@ async function run() {
     app.post("/user", async (req, res) => {
       const user = req.body;
 
-      if (
-        !user.name ||
-        !user.email ||
-        !user.role ||
-        !user.bank_account_no ||
-        !user.salary ||
-        !user.designation ||
-        !user.photo
-      ) {
-        return res.status(400).send({ error: "All fields are required." });
+      const query = { email: user.email }
+      const existingUser = await userCollection.findOne(query)
+      if (existingUser) {
+        return res.send({ message: 'user already exists', insertedId: null })
       }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
 
-      try {
-        const result = await userCollection.insertOne(user);
-        res.status(201).send(result);
-      } catch (error) {
-        console.error("Error saving user:", error);
-        res.status(500).send({ error: "Failed to save user." });
-      }
     });
 
     // Task Routes
