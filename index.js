@@ -65,7 +65,7 @@ async function run() {
       }
     });
 
-    // Task Part
+    // Task Routes
 
     // Add Task to DB
     app.post('/tasks', async (req, res) => {
@@ -77,9 +77,35 @@ async function run() {
 
     // Show All Task Data
     app.get('/tasks', async (req, res) => {
-      const email = req.query.email
-      const query = {email:email}
-      const result = await tasksCollection.find(query).toArray()
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await tasksCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // Delete Single Task
+    app.delete('/tasks/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await tasksCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // Update Single Task
+    app.put('/tasks/:id', async (req, res) => {
+      const id = req.params.id;
+      const updatedTask = req.body;
+
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          task: updatedTask.task,
+          hours: updatedTask.hours,
+          date: updatedTask.date,
+        },
+      };
+
+      const result = await tasksCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
