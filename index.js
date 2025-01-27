@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken')
 const app = express();
 const cors = require("cors");
 
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
+
 const port = process.env.PORT || 5000;
 
 // Middleware
@@ -25,7 +27,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server (optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     // Collections
     const userCollection = client.db("CoreTeam").collection("user");
@@ -75,14 +77,37 @@ async function run() {
       }
       next()
     }
+    // HR Token Verify
+    const verifyHR = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email }
+      const user = await userCollection.findOne(query)
+      const isHR = user?.role === 'HR';
+      if (!isHR) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+      next()
+    }
 
     // Get all users
-    app.get("/user", verifyToken,verifyAdmin, async (req, res) => {
+    // app.get("/user", verifyToken, verifyHR || verifyAdmin, async (req, res) => {
+    //   // console.log(req.headers);
+    //   const result = await userCollection.find().toArray();
+    //   res.send(result);
+    // });
+    app.get("/user", async (req, res) => {
       // console.log(req.headers);
       const result = await userCollection.find().toArray();
       res.send(result);
     });
+    app.get("/user/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await userCollection.findOne(query)
+      res.send(result);
+    });
 
+    // Admin
     app.get("/user/admin/:email", async (req, res) => {
       const email = req.params.email;
       // if (email !== req.decoded.email) {
@@ -95,6 +120,20 @@ async function run() {
         admin = user?.role === 'admin'
       }
       res.send({ admin })
+    });
+    // HR
+    app.get("/user/HR/:email", async (req, res) => {
+      const email = req.params.email;
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: 'forbidden access' })
+      // }
+      const query = { email: email }
+      const user = await userCollection.findOne(query);
+      let HR = false
+      if (user) {
+        HR = user?.role === 'HR'
+      }
+      res.send({ HR })
     });
 
     // Add a new user
@@ -159,7 +198,7 @@ async function run() {
     // Admin Related API
 
     // Update user as fired
-    app.put('/user/fire/:id', async (req, res) => {
+    app.put('/user/fire/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const { fired } = req.body;
 
@@ -173,7 +212,7 @@ async function run() {
     });
 
     // Update user role to HR
-    app.put("/user/make-hr/:id", async (req, res) => {
+    app.put("/user/make-hr/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const { role } = req.body;
 
@@ -186,9 +225,25 @@ async function run() {
       res.send(result);
     });
 
+    // strip payment information
+    app.post('/stripe-payment', async (req, res) => { 
+      const { price } = req.body
+      const amount = parseInt(price * 100);
+      console.log( 'payment ammount',amount)
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
+
     // Ping MongoDB
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
