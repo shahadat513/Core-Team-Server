@@ -32,6 +32,7 @@ async function run() {
     // Collections
     const userCollection = client.db("CoreTeam").collection("user");
     const tasksCollection = client.db("CoreTeam").collection("tasks");
+    const payrollCollection = client.db("CoreTeam").collection("payroll");
 
 
 
@@ -69,9 +70,10 @@ async function run() {
     // Admin Token Verify
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
+      console.log(req.decoded.email);
       const query = { email: email }
       const user = await userCollection.findOne(query)
-      const isAdmin = user?.role === 'admin' || 'HR';
+      const isAdmin = user?.role === 'admin';
       if (!isAdmin) {
         return res.status(403).send({ message: 'forbidden access' })
       }
@@ -90,19 +92,24 @@ async function run() {
     }
 
     // Get all users
-    // app.get("/user", verifyToken, verifyHR || verifyAdmin, async (req, res) => {
-    //   // console.log(req.headers);
-    //   const result = await userCollection.find().toArray();
-    //   res.send(result);
-    // });
-    app.get("/user", async (req, res) => {
+    app.get("/user", verifyToken, verifyAdmin, async (req, res) => {
+      console.log(req.headers);
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/user/admin", verifyToken, verifyAdmin, async (req, res) => {
+      // console.log(req.headers);
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/user/HR", verifyToken, verifyHR, async (req, res) => {
       // console.log(req.headers);
       const result = await userCollection.find().toArray();
       res.send(result);
     });
     app.get("/user/:id", async (req, res) => {
       const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
       const result = await userCollection.findOne(query)
       res.send(result);
     });
@@ -134,6 +141,20 @@ async function run() {
         HR = user?.role === 'HR'
       }
       res.send({ HR })
+    });
+    // Employee
+    app.get("/user/Employee/:email", async (req, res) => {
+      const email = req.params.email;
+      // if (email !== req.decoded.email) {
+      //   return res.status(403).send({ message: 'forbidden access' })
+      // }
+      const query = { email: email }
+      const user = await userCollection.findOne(query);
+      let Employee = false
+      if (user) {
+        Employee = user?.role === 'Employee'
+      }
+      res.send({ Employee })
     });
 
     // Add a new user
@@ -225,11 +246,23 @@ async function run() {
       res.send(result);
     });
 
+    app.put('/user/salary/:id', async (req, res) => {
+      const id = req.params.id;
+      const { salary } = req.body;
+
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: { salary: salary } };
+
+      const result = await userCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+
     // strip payment information
-    app.post('/stripe-payment', async (req, res) => { 
+    app.post('/stripe-payment', async (req, res) => {
       const { price } = req.body
       const amount = parseInt(price * 100);
-      console.log( 'payment ammount',amount)
+      console.log('payment ammount', amount)
       const paymentIntent = await stripe.paymentIntents.create({
         amount,
         currency: 'usd',
@@ -240,6 +273,71 @@ async function run() {
         clientSecret: paymentIntent.client_secret
       })
     })
+
+    // Update verification status
+    app.patch("/user/verify/:id", verifyToken, verifyHR, async (req, res) => {
+      const id = req.params.id;
+      const isVerified = req.body.isVerified;
+      console.log(isVerified);
+
+      // const updatedVerificationStatus = isVerified === "true" ? false : true;
+
+      const query = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: { isVerified: !isVerified },
+      };
+      console.log(updateDoc);
+
+      const result = await userCollection.updateOne(query, updateDoc);
+
+      res.send(result)
+    });
+
+    // Handle payment request
+    app.post("/payroll/request", verifyToken, verifyHR, async (req, res) => {
+      const { employeeId, name, salary, month, year, status } = req.body;
+
+      const paymentRequest = {
+        employeeId,
+        name,
+        salary,
+        month,
+        year,
+        status, // Initial status is "Pending"
+        createdAt: new Date(),
+      };
+
+      try {
+        const result = await payrollCollection.insertOne(paymentRequest);
+        res.send(result);
+      } catch (error) {
+        console.error("Error adding payment request:", error);
+        res.status(500).send({ message: "Failed to create payment request." });
+      }
+    });
+
+    //View payroll records
+    app.get("/payroll", verifyToken, async (req, res) => {
+      const result = await payrollCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Update payment request status(Approve / Reject)
+    app.patch("/payroll/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const { status } = req.body;
+
+      try {
+        const query = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { status } };
+
+        const result = await payrollCollection.updateOne(query, updateDoc);
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating payment request:", error);
+        res.status(500).send({ message: "Failed to update payment request status." });
+      }
+    });
 
     // Ping MongoDB
     // await client.db("admin").command({ ping: 1 });
