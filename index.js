@@ -33,6 +33,7 @@ async function run() {
     const userCollection = client.db("CoreTeam").collection("user");
     const tasksCollection = client.db("CoreTeam").collection("tasks");
     const payrollCollection = client.db("CoreTeam").collection("payroll");
+    const paymentCollection = client.db("CoreTeam").collection("payment");
 
 
 
@@ -261,10 +262,12 @@ async function run() {
     // strip payment information
     app.post('/stripe-payment', async (req, res) => {
       const { price } = req.body
+      // console.log(price);
       const amount = parseInt(price * 100);
-      console.log('payment ammount', amount)
+      // console.log('payment ammount', amount)
+
       const paymentIntent = await stripe.paymentIntents.create({
-        amount,
+        amount: amount,
         currency: 'usd',
         payment_method_types: ['card']
       });
@@ -273,6 +276,20 @@ async function run() {
         clientSecret: paymentIntent.client_secret
       })
     })
+
+    // store all payment data
+    app.post('/payment', async (req, res) => {
+      const payment = req.body;
+
+      const Paymentresult = await paymentCollection.insertOne(payment);
+      res.send(Paymentresult);
+    });
+
+    app.get("/payment", async (req, res) => {
+      const result = await paymentCollection.find().toArray();
+      res.send(result);
+    });
+
 
     // Update verification status
     app.patch("/user/verify/:id", verifyToken, verifyHR, async (req, res) => {
@@ -286,7 +303,7 @@ async function run() {
       const updateDoc = {
         $set: { isVerified: !isVerified },
       };
-      console.log(updateDoc);
+      // console.log(updateDoc);
 
       const result = await userCollection.updateOne(query, updateDoc);
 
@@ -295,10 +312,11 @@ async function run() {
 
     // Handle payment request
     app.post("/payroll/request", verifyToken, verifyHR, async (req, res) => {
-      const { employeeId, name, salary, month, year, status } = req.body;
+      const { employeeId,email, name, salary, month, year, status } = req.body;
 
       const paymentRequest = {
         employeeId,
+        email,
         name,
         salary,
         month,
@@ -317,10 +335,18 @@ async function run() {
     });
 
     //View payroll records
-    app.get("/payroll", verifyToken, async (req, res) => {
+    app.get("/payroll", async (req, res) => {
       const result = await payrollCollection.find().toArray();
       res.send(result);
     });
+
+    app.get("/payroll/:id", async (req, res) =>{
+      const id = req.params.id
+      const query = {_id: new ObjectId(id)}
+
+      const result = await payrollCollection.findOne(query)
+      res.send(result)
+    })
 
     // Update payment request status(Approve / Reject)
     app.patch("/payroll/:id", verifyToken, verifyAdmin, async (req, res) => {
