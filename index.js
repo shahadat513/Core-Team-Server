@@ -71,7 +71,7 @@ async function run() {
     // Admin Token Verify
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      console.log(req.decoded.email);
+      // console.log(req.decoded.email);
       const query = { email: email }
       const user = await userCollection.findOne(query)
       const isAdmin = user?.role === 'admin';
@@ -94,7 +94,7 @@ async function run() {
 
     // Get all users
     app.get("/user", verifyToken, verifyAdmin, async (req, res) => {
-      console.log(req.headers);
+      // console.log(req.headers);
       const result = await userCollection.find().toArray();
       res.send(result);
     });
@@ -108,12 +108,21 @@ async function run() {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
+
     app.get("/user/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
       const result = await userCollection.findOne(query)
       res.send(result);
     });
+
+    // Get by email
+    // app.get("/user/:email",verifyToken, async (req, res) => {
+    //   const email = req.params.email;
+    //   const query = { email: email }
+    //   const result = await userCollection.findOne(query)
+    //   res.send(result);
+    // });
 
     // Admin
     app.get("/user/admin/:email", async (req, res) => {
@@ -285,10 +294,13 @@ async function run() {
       res.send(Paymentresult);
     });
 
-    app.get("/payment", async (req, res) => {
-      const result = await paymentCollection.find().toArray();
+    app.get("/payment/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await paymentCollection.find(query).toArray();
       res.send(result);
     });
+
 
 
     // Update verification status
@@ -312,7 +324,7 @@ async function run() {
 
     // Handle payment request
     app.post("/payroll/request", verifyToken, verifyHR, async (req, res) => {
-      const { employeeId,email, name, salary, month, year, status } = req.body;
+      const { employeeId, email, name, salary, month, year, status } = req.body;
 
       const paymentRequest = {
         employeeId,
@@ -340,9 +352,9 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/payroll/:id", async (req, res) =>{
+    app.get("/payroll/:id", async (req, res) => {
       const id = req.params.id
-      const query = {_id: new ObjectId(id)}
+      const query = { _id: new ObjectId(id) }
 
       const result = await payrollCollection.findOne(query)
       res.send(result)
@@ -364,6 +376,12 @@ async function run() {
         res.status(500).send({ message: "Failed to update payment request status." });
       }
     });
+
+    // Stats or Analytics
+    // app.get('/user-state', async(req,res)=>{
+
+    // })
+
 
     // Ping MongoDB
     // await client.db("admin").command({ ping: 1 });
