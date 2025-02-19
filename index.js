@@ -93,7 +93,7 @@ async function run() {
     }
 
     // Get all users
-    app.get("/user", verifyToken, verifyAdmin, async (req, res) => {
+    app.get("/user", verifyToken, async (req, res) => {
       // console.log(req.headers);
       const result = await userCollection.find().toArray();
       res.send(result);
@@ -292,6 +292,11 @@ async function run() {
 
       const Paymentresult = await paymentCollection.insertOne(payment);
       res.send(Paymentresult);
+    });
+
+    app.get('/payment', async (req, res) => {
+      const result = await paymentCollection.find().toArray();
+      res.send(result);
     });
 
     app.get("/payment/:email", async (req, res) => {
